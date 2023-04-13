@@ -572,13 +572,13 @@ func (s *Server) serveHTTP3(addr caddy.NetworkAddress, tlsCfg *tls.Config) error
 	} else {
 		qlogInfoFolder := os.Getenv("CADDY_QUIC_GO_QLOG_INDICATOR")
 		if len(qlogInfoFolder) > 0 {
-			contentBytes, err := ioutil.ReadFile(filepath.Join(qlogInfoFolder, "indicator"))
-			if err != nil {
-				_ = fmt.Errorf("Error reading file: %v\n", err)
-			} else {
-				if len(contentBytes) > 0 {
-					finalQlogFolder := filepath.Join(qlogInfoFolder, string(contentBytes))
-					quicConf.Tracer = qlog.NewTracer(func(p logging.Perspective, connectionID []byte) io.WriteCloser {
+			quicConf.Tracer = qlog.NewTracer(func(p logging.Perspective, connectionID []byte) io.WriteCloser {
+				contentBytes, err := ioutil.ReadFile(filepath.Join(qlogInfoFolder, "indicator"))
+				if err != nil {
+					_ = fmt.Errorf("Error reading file: %v", err)
+				} else {
+					if len(contentBytes) > 0 {
+						finalQlogFolder := filepath.Join(qlogInfoFolder, string(contentBytes))
 						filename := fmt.Sprintf("%x.server.sqlog", connectionID)
 						output := path.Join(finalQlogFolder, filename)
 						f, err := os.Create(output)
@@ -586,9 +586,11 @@ func (s *Server) serveHTTP3(addr caddy.NetworkAddress, tlsCfg *tls.Config) error
 							_ = fmt.Errorf("can't create qlog file [%s], reason : %s", output, err)
 						}
 						return f
-					})
+					}
 				}
-			}
+				devNull, _ := os.OpenFile("/dev/null", os.O_WRONLY, 0666)
+				return devNull
+			})
 		}
 	}
 	// create HTTP/3 server if not done already
