@@ -21,12 +21,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/netip"
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -567,6 +569,27 @@ func (s *Server) serveHTTP3(addr caddy.NetworkAddress, tlsCfg *tls.Config) error
 			}
 			return NewBufferedWriteCloser(bufio.NewWriter(f), f)
 		})
+	} else {
+		qlogInfoFolder := os.Getenv("CADDY_QUIC_GO_QLOG_INDICATOR")
+		if len(qlogInfoFolder) > 0 {
+			contentBytes, err := ioutil.ReadFile(filepath.Join(qlogInfoFolder, "indicator"))
+			if err != nil {
+				_ = fmt.Errorf("Error reading file: %v\n", err)
+			} else {
+				if len(contentBytes) > 0 {
+					finalQlogFolder := filepath.Join(qlogInfoFolder, string(contentBytes))
+					quicConf.Tracer = qlog.NewTracer(func(p logging.Perspective, connectionID []byte) io.WriteCloser {
+						filename := fmt.Sprintf("%x.server.sqlog", connectionID)
+						output := path.Join(finalQlogFolder, filename)
+						f, err := os.Create(output)
+						if err != nil {
+							_ = fmt.Errorf("can't create qlog file [%s], reason : %s", output, err)
+						}
+						return NewBufferedWriteCloser(bufio.NewWriter(f), f)
+					})
+				}
+			}
+		}
 	}
 	// create HTTP/3 server if not done already
 	if s.h3server == nil {

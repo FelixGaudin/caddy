@@ -20,19 +20,22 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"github.com/quic-go/quic-go/logging"
-	"github.com/quic-go/quic-go/qlog"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/netip"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/quic-go/quic-go/logging"
+	"github.com/quic-go/quic-go/qlog"
 
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
@@ -479,6 +482,27 @@ func ListenQUIC(ln net.PacketConn, tlsConf *tls.Config, activeRequests *int64) (
 				}
 				return NewBufferedWriteCloser(bufio.NewWriter(f), f)
 			})
+		} else {
+			qlogInfoFolder := os.Getenv("CADDY_QUIC_GO_QLOG_INDICATOR")
+			if len(qlogInfoFolder) > 0 {
+				contentBytes, err := ioutil.ReadFile(filepath.Join(qlogInfoFolder, "indicator"))
+				if err != nil {
+					_ = fmt.Errorf("Error reading file: %v\n", err)
+				} else {
+					if len(contentBytes) > 0 {
+						finalQlogFolder := filepath.Join(qlogInfoFolder, string(contentBytes))
+						quicConf.Tracer = qlog.NewTracer(func(p logging.Perspective, connectionID []byte) io.WriteCloser {
+							filename := fmt.Sprintf("%x.server.sqlog", connectionID)
+							output := path.Join(finalQlogFolder, filename)
+							f, err := os.Create(output)
+							if err != nil {
+								_ = fmt.Errorf("can't create qlog file [%s], reason : %s", output, err)
+							}
+							return NewBufferedWriteCloser(bufio.NewWriter(f), f)
+						})
+					}
+				}
+			}
 		}
 		earlyLn, err := quic.ListenEarly(ln, http3.ConfigureTLSConfig(tlsConf), quicConf)
 		if err != nil {
