@@ -567,7 +567,7 @@ func (s *Server) serveHTTP3(addr caddy.NetworkAddress, tlsCfg *tls.Config) error
 			if err != nil {
 				_ = fmt.Errorf("can't create qlog file [%s], reason : %s", output, err)
 			}
-			return NewBufferedWriteCloser(bufio.NewWriter(f), f)
+			return f
 		})
 	} else {
 		qlogInfoFolder := os.Getenv("CADDY_QUIC_GO_QLOG_INDICATOR")
@@ -585,7 +585,7 @@ func (s *Server) serveHTTP3(addr caddy.NetworkAddress, tlsCfg *tls.Config) error
 						if err != nil {
 							_ = fmt.Errorf("can't create qlog file [%s], reason : %s", output, err)
 						}
-						return NewBufferedWriteCloser(bufio.NewWriter(f), f)
+						return f
 					})
 				}
 			}
